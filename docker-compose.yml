@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  smartlab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartlab-app
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/smartlab
+      - JWT_SECRET=smartlab_production_faculty_jwt_secret_key_2026!
+      - STUDENT_JWT_SECRET=smartlab_production_student_session_secret_key_2026!
+    depends_on:
+      - mongo
+    restart: always
+
+  mongo:
+    image: mongo:7.0
+    container_name: smartlab-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - smartlab-db-data:/data/db
+    restart: always
+
+volumes:
+  smartlab-db-data:

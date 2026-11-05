@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const XLSX = require('xlsx');
 const Student = require('../models/Student');
 const QuestionSet = require('../models/QuestionSet');
 const Examination = require('../models/Examination');
@@ -94,6 +95,85 @@ function parseSetIdentifier(raw) {
 }
 
 /**
+ * Universal dual-engine Excel loader (ExcelJS + SheetJS fallback)
+ * Resilient against ExcelJS bugs, older .xls files, formatting anomalies,
+ * and multi-sheet workbooks.
+ */
+async function loadWorkbookRows(buffer, sheetKeyword = '') {
+  // Strategy 1: Try ExcelJS first
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    if (workbook.worksheets && workbook.worksheets.length > 0) {
+      let targetSheet = workbook.worksheets[0];
+      if (sheetKeyword) {
+        const regex = new RegExp(sheetKeyword, 'i');
+        const matched = workbook.worksheets.find(ws => regex.test(ws.name));
+        if (matched) targetSheet = matched;
+      }
+
+      const rows = [];
+      targetSheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        rows.push({
+          rowNumber,
+          getCell: (col) => row.getCell(col),
+          eachCell: (cb) => row.eachCell(cb)
+        });
+      });
+
+      if (rows.length > 0) {
+        return { rows, sheetName: targetSheet.name };
+      }
+    }
+  } catch (exceljsErr) {
+    console.warn('[Excel Parser]: ExcelJS notice, switching to secondary parser -', exceljsErr.message || exceljsErr);
+  }
+
+  // Strategy 2: Fallback to SheetJS (supports .xlsx, .xls, .csv seamlessly)
+  try {
+    const xwb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    if (xwb && xwb.SheetNames && xwb.SheetNames.length > 0) {
+      let targetSheetName = xwb.SheetNames[0];
+      if (sheetKeyword) {
+        const regex = new RegExp(sheetKeyword, 'i');
+        const matched = xwb.SheetNames.find(name => regex.test(name));
+        if (matched) targetSheetName = matched;
+      }
+
+      const sheet = xwb.Sheets[targetSheetName];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const rows = [];
+      data.forEach((rowArr, idx) => {
+        const hasContent = Array.isArray(rowArr) && rowArr.some(c => c !== null && c !== undefined && String(c).trim() !== '');
+        if (hasContent) {
+          rows.push({
+            rowNumber: idx + 1,
+            getCell: (colNumber) => ({ value: rowArr[colNumber - 1] ?? '' }),
+            eachCell: (cb) => {
+              rowArr.forEach((val, colIdx) => {
+                if (val !== undefined && val !== null && String(val).trim() !== '') {
+                  cb({ value: val }, colIdx + 1);
+                }
+              });
+            }
+          });
+        }
+      });
+
+      if (rows.length > 0) {
+        return { rows, sheetName: targetSheetName };
+      }
+    }
+  } catch (sheetjsErr) {
+    console.error('[Excel Parser]: SheetJS error -', sheetjsErr.message || sheetjsErr);
+  }
+
+  const err = new Error('Invalid Excel file format. Please upload a valid .xlsx or .xls file.');
+  err.statusCode = 400;
+  throw err;
+}
+
+/**
  * Generate Excel Template for Student Bulk Import
  * Simplified to exactly three fields: Sl, Regd No., Student Name
  */
@@ -135,21 +215,7 @@ async function importStudentsFromExcel(buffer, options = {}) {
   const defaultYear = options.year ? parseInt(options.year, 10) : 3;
   const defaultSec = (options.section || 'A').toUpperCase();
 
-  const workbook = new ExcelJS.Workbook();
-  try {
-    await workbook.xlsx.load(buffer);
-  } catch (parseErr) {
-    const err = new Error(`Invalid Excel file format: ${parseErr.message || 'Unable to load file'}.`);
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const worksheet = workbook.worksheets[0];
-  if (!worksheet) {
-    const err = new Error('Excel workbook contains no sheets.');
-    err.statusCode = 400;
-    throw err;
-  }
+  const { rows } = await loadWorkbookRows(buffer, 'student|candidate|reg');
 
   // Detect header row dynamically within first 8 rows
   let headerRowIndex = 1;
@@ -159,14 +225,14 @@ async function importStudentsFromExcel(buffer, options = {}) {
     studentName: 3
   };
 
-  for (let r = 1; r <= Math.min(8, worksheet.rowCount); r++) {
-    const row = worksheet.getRow(r);
+  for (let r = 0; r < Math.min(8, rows.length); r++) {
+    const row = rows[r];
     let matched = 0;
     const tempMap = {};
 
     row.eachCell((cell, colNumber) => {
       const text = getCellValue(cell).toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (text === 'sl' || text === 'slno' || text === 'sno' || text === 'serial' || text === 'sno') {
+      if (text === 'sl' || text === 'slno' || text === 'sno' || text === 'serial') {
         tempMap.sl = colNumber;
         matched++;
       } else if (text.includes('regd') || text.includes('regno') || text.includes('roll') || text.includes('usn') || text.includes('register')) {
@@ -185,7 +251,7 @@ async function importStudentsFromExcel(buffer, options = {}) {
     });
 
     if (matched >= 2 || (tempMap.registerNumber && tempMap.studentName)) {
-      headerRowIndex = r;
+      headerRowIndex = row.rowNumber;
       Object.assign(colMap, tempMap);
       break;
     }
@@ -195,7 +261,8 @@ async function importStudentsFromExcel(buffer, options = {}) {
   const errors = [];
   const existingRegs = new Set((await Student.find({}, 'registerNumber')).map((s) => s.registerNumber));
 
-  worksheet.eachRow((row, rowNumber) => {
+  rows.forEach((row) => {
+    const rowNumber = row.rowNumber;
     if (rowNumber <= headerRowIndex) return; // Skip headers
 
     const rawReg = getCellValue(row.getCell(colMap.registerNumber));
@@ -355,22 +422,7 @@ async function importQuestionSetsFromExcel(buffer, examId) {
     throw err;
   }
 
-  const workbook = new ExcelJS.Workbook();
-  try {
-    await workbook.xlsx.load(buffer);
-  } catch (parseErr) {
-    console.error('[ExcelJS Parse Error]:', parseErr);
-    const err = new Error(`Invalid Excel file format: ${parseErr.message || 'Unable to parse workbook'}. Please upload a valid .xlsx file.`);
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const worksheet = workbook.worksheets[0];
-  if (!worksheet) {
-    const err = new Error('Excel workbook contains no sheets.');
-    err.statusCode = 400;
-    throw err;
-  }
+  const { rows } = await loadWorkbookRows(buffer, 'question|set');
 
   // Detect header row dynamically in the first 8 rows
   let headerRowIndex = 1;
@@ -383,8 +435,8 @@ async function importQuestionSetsFromExcel(buffer, examId) {
     marks: 6
   };
 
-  for (let r = 1; r <= Math.min(8, worksheet.rowCount); r++) {
-    const row = worksheet.getRow(r);
+  for (let r = 0; r < Math.min(8, rows.length); r++) {
+    const row = rows[r];
     let matched = 0;
     const tempMap = {};
 
@@ -415,7 +467,7 @@ async function importQuestionSetsFromExcel(buffer, examId) {
     });
 
     if (matched >= 2) {
-      headerRowIndex = r;
+      headerRowIndex = row.rowNumber;
       Object.assign(colMap, tempMap);
       break;
     }
@@ -425,7 +477,8 @@ async function importQuestionSetsFromExcel(buffer, examId) {
   const errors = [];
   let lastSetIdentifier = null;
 
-  worksheet.eachRow((row, rowNumber) => {
+  rows.forEach((row) => {
+    const rowNumber = row.rowNumber;
     if (rowNumber <= headerRowIndex) return; // Skip headers
 
     const setRaw = getCellValue(row.getCell(colMap.setNumber));

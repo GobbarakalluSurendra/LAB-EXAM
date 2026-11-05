@@ -4,6 +4,7 @@
   "description": "SmartLab - Digital Lab Examination Management System Server",
   "main": "server.js",
   "scripts": {
+    "build": "node -e \"console.log('Static assets ready in server/public')\"",
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node tests/assignment.test.js"
@@ -17,6 +18,7 @@
     "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5"
   }
 }

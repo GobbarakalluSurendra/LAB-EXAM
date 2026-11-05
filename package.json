@@ -8,7 +8,7 @@
     "install:client": "npm install --prefix client",
     "install:all": "npm install --prefix server && npm install --prefix client",
     "build:client": "npm run build --prefix client",
-    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client",
+    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client && node -e \"const fs=require('fs'); fs.cpSync('client/dist', 'server/public', {recursive:true, force:true});\"",
     "start": "node server/server.js",
     "server": "node server/server.js",
     "dev": "node server/server.js"

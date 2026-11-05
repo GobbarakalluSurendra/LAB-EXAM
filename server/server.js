@@ -72,9 +72,13 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-// Explicit handlers for logo and favicon
-const publicPath = path.join(__dirname, '..', 'client', 'public');
-const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
+// Resolve client static assets from multiple potential deployment locations
+const candidatePaths = [
+  path.join(__dirname, 'public'),
+  path.join(__dirname, '..', 'client', 'dist'),
+  path.join(__dirname, 'dist')
+];
+const clientDistPath = candidatePaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || candidatePaths[0];
 
 app.get('/logo.svg', (req, res) => {
   const p = path.join(clientDistPath, 'logo.svg');
@@ -94,7 +98,7 @@ app.get('/favicon.ico', (req, res) => {
 });
 
 // Serve Client Static Build if available
-if (fs.existsSync(clientDistPath)) {
+if (fs.existsSync(path.join(clientDistPath, 'index.html'))) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) {

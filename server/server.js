@@ -1,7 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config(); // also check root .env if present
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
 const connectDB = require('./config/db');
 const seedInitialData = require('./utils/seedData');

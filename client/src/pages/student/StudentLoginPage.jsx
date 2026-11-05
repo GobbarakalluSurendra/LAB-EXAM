@@ -88,7 +88,7 @@ const StudentLoginPage = () => {
           <h1 className="text-2xl font-bold text-white tracking-tight">SmartLab Examination Portal</h1>
           <p className="text-xs text-indigo-300 font-medium mt-1 flex items-center justify-center gap-1.5">
             <Building2 className="w-3.5 h-3.5" />
-            National Institute of Engineering and Technology
+            RGM College of Engineering & Technology, Nandyal
           </p>
         </div>
 
@@ -144,7 +144,7 @@ const StudentLoginPage = () => {
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                   College Register Number
                 </label>
-                <span className="text-[11px] text-slate-400">e.g. 23CS001</span>
+                <span className="text-[11px] text-slate-400">e.g. 23091A32F9</span>
               </div>
               <input
                 type="text"
@@ -176,20 +176,9 @@ const StudentLoginPage = () => {
                 <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
                 Quick test accounts:
               </span>
-              <span className="text-[10px] text-indigo-600 font-mono">Dept: CSE Yr: 3</span>
+              <span className="text-[10px] text-indigo-600 font-mono">Dept: CSEDS Yr: 3</span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {['23CS001', '23CS005', '23CS012', '23CS024', '23CS048', '23CS072'].map((reg) => (
-                <button
-                  key={reg}
-                  type="button"
-                  onClick={() => handleQuickFill(reg)}
-                  className="text-xs font-mono bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 px-2 py-1 rounded transition-colors"
-                >
-                  {reg}
-                </button>
-              ))}
-            </div>
+           
           </div>
         </div>
 

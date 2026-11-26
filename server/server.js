@@ -5,7 +5,6 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const connectDB = require('./config/db');
-const seedInitialData = require('./utils/seedData');
 const { apiLimiter } = require('./middleware/rateLimiter');
 
 // Import routes
@@ -133,7 +132,6 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await connectDB();
-    await seedInitialData();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`=======================================================`);

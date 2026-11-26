@@ -17,7 +17,7 @@ const Navbar = ({ onMobileToggle }) => {
         </button>
         <div>
           <h2 className="text-sm font-semibold text-slate-800 hidden sm:block">
-            National Institute of Engineering and Technology
+            RGMCET
           </h2>
           <p className="text-xs text-slate-500 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
